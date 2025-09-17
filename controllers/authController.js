@@ -37,3 +37,14 @@ export const login = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
+// Get logged-in user profile
+// Get user profile
+export const getProfile = async (req, res) => {
+  try {
+    res.status(200).json(req.user); // req.user جاي من protect middleware
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+
