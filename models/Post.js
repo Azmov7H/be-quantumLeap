@@ -8,6 +8,14 @@ const postSchema = new mongoose.Schema(
     image: { type: String },
     author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // اللايكات
+    comments: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        content: { type: String },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ]
   },
   { timestamps: true }
 );

@@ -68,3 +68,60 @@ export const deletePost = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
+// إضافة لايك أو إزالة لايك
+export const toggleLikePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ msg: "Post not found" });
+
+    const userId = req.user.id;
+    const index = post.likes.indexOf(userId);
+
+    if (index === -1) {
+      post.likes.push(userId); // إضافة لايك
+    } else {
+      post.likes.splice(index, 1); // إزالة لايك
+    }
+
+    await post.save();
+    res.status(200).json(post.likes);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// إضافة كومنت
+export const addComment = async (req, res) => {
+  try {
+    const { content } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ msg: "Post not found" });
+
+    const comment = {
+      user: req.user.id,
+      content
+    };
+
+    post.comments.push(comment);
+    await post.save();
+
+    // جلب التعليقات مع بيانات المستخدم
+    const populatedPost = await Post.findById(req.params.id).populate("comments.user", "username profileImage");
+    res.status(201).json(populatedPost.comments);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// Get comments for a specific post
+export const getComments = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id)
+      .populate("comments.user", "username profileImage"); // جلب بيانات كل مستخدم
+    if (!post) return res.status(404).json({ msg: "Post not found" });
+
+    res.status(200).json(post.comments);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
