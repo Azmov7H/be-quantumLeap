@@ -1,5 +1,5 @@
 import Post from "../models/Post.js";
-import { cloudinary } from "../utils/multerCloudinary.js";
+import cloudinary from "../utils/cloudinary.js";
 import multer from "multer";
 
 // Multer storage + Cloudinary

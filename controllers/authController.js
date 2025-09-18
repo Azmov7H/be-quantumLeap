@@ -1,14 +1,11 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import cloudinary from "cloudinary";
+import cloudinary from "../utils/cloudinary.js";
 
-// Cloudinary config
-cloudinary.v2.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+
+
+
 
 // Register new user
 export const register = async (req, res) => {
@@ -71,27 +68,63 @@ export const getProfile = async (req, res) => {
 };
 
 // Update profile (username, password, profileImage)
+
+
+
 export const updateProfile = async (req, res) => {
   try {
-    const { username, password, profileImage } = req.body;
-    const updates = {};
+    const { username, email, password } = req.body;
+    let updateFields = {};
 
-    if (username) updates.username = username;
-    if (password) updates.password = await bcrypt.hash(password, 10);
+    if (username) updateFields.username = username;
+    if (email) updateFields.email = email;
 
-    if (profileImage) {
-      const result = await cloudinary.v2.uploader.upload(profileImage, {
-        folder: "users",
-      });
-      updates.profileImage = result.secure_url;
+    // ✅ لو فيه صورة مرفوعة نرفعها على Cloudinary
+    if (req.file) {
+      const uploadResult = await cloudinary.uploader.upload_stream(
+        { folder: "profiles" },
+        async (error, result) => {
+          if (error) {
+            console.error(error);
+            return res.status(500).json({ msg: "Cloudinary upload failed" });
+          }
+
+          updateFields.profileImage = result.secure_url;
+
+          if (password) {
+            const hash = await bcrypt.hash(password, 10);
+            updateFields.password = hash;
+          }
+
+          const user = await User.findByIdAndUpdate(
+            req.user._id,
+            { $set: updateFields },
+            { new: true, runValidators: true }
+          ).select("-password");
+
+          return res.json({ msg: "Profile updated", user });
+        }
+      );
+
+      req.file.stream.pipe(uploadResult); // 🚀 نبعث الملف لـ Cloudinary
+      return;
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, {
-      new: true,
-    }).select("-password");
+    // ✅ لو مفيش صورة
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      updateFields.password = hash;
+    }
 
-    res.status(200).json({ msg: "Profile updated", user });
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    res.json({ msg: "Profile updated", user });
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error(err);
+    res.status(500).json({ msg: "Something went wrong" });
   }
 };
