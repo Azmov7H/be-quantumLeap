@@ -2,6 +2,8 @@ import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import cloudinary from "../utils/cloudinary.js";
+import streamifier from "streamifier";
+
 
 
 
@@ -71,6 +73,7 @@ export const getProfile = async (req, res) => {
 
 
 
+
 export const updateProfile = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -79,38 +82,22 @@ export const updateProfile = async (req, res) => {
     if (username) updateFields.username = username;
     if (email) updateFields.email = email;
 
-    // ✅ لو فيه صورة مرفوعة نرفعها على Cloudinary
+    // ✅ لو فيه صورة نرفعها بـ buffer
     if (req.file) {
-      const uploadResult = await cloudinary.uploader.upload_stream(
-        { folder: "profiles" },
-        async (error, result) => {
-          if (error) {
-            console.error(error);
-            return res.status(500).json({ msg: "Cloudinary upload failed" });
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "profiles" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
           }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
 
-          updateFields.profileImage = result.secure_url;
-
-          if (password) {
-            const hash = await bcrypt.hash(password, 10);
-            updateFields.password = hash;
-          }
-
-          const user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $set: updateFields },
-            { new: true, runValidators: true }
-          ).select("-password");
-
-          return res.json({ msg: "Profile updated", user });
-        }
-      );
-
-      req.file.stream.pipe(uploadResult); // 🚀 نبعث الملف لـ Cloudinary
-      return;
+      updateFields.profileImage = result.secure_url;
     }
 
-    // ✅ لو مفيش صورة
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       updateFields.password = hash;
@@ -124,7 +111,7 @@ export const updateProfile = async (req, res) => {
 
     res.json({ msg: "Profile updated", user });
   } catch (err) {
-    console.error(err);
+    console.error("❌ updateProfile error:", err);
     res.status(500).json({ msg: "Something went wrong" });
   }
 };
