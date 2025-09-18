@@ -1,18 +1,40 @@
 import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import cloudinary from "cloudinary";
+
+// Cloudinary config
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Register new user
 export const register = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, profileImage } = req.body;
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ msg: "Email already in use" });
 
     const hash = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hash });
 
-    res.status(201).json({ msg: "User registered successfully" });
+    let uploadedImage = null;
+    if (profileImage) {
+      const result = await cloudinary.v2.uploader.upload(profileImage, {
+        folder: "users",
+      });
+      uploadedImage = result.secure_url;
+    }
+
+    const user = await User.create({
+      username,
+      email,
+      password: hash,
+      profileImage: uploadedImage || undefined,
+    });
+
+    res.status(201).json({ msg: "User registered successfully", user });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -32,19 +54,44 @@ export const login = async (req, res) => {
       expiresIn: "7d",
     });
 
-    res.status(200).json({ token });
+    res.status(200).json({ token, user });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 };
-// Get logged-in user profile
-// Get user profile
+
+// Get profile
 export const getProfile = async (req, res) => {
   try {
-    res.status(200).json(req.user); // req.user جاي من protect middleware
+    const user = await User.findById(req.user.id).select("-password");
+    res.status(200).json(user);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 };
 
+// Update profile (username, password, profileImage)
+export const updateProfile = async (req, res) => {
+  try {
+    const { username, password, profileImage } = req.body;
+    const updates = {};
 
+    if (username) updates.username = username;
+    if (password) updates.password = await bcrypt.hash(password, 10);
+
+    if (profileImage) {
+      const result = await cloudinary.v2.uploader.upload(profileImage, {
+        folder: "users",
+      });
+      updates.profileImage = result.secure_url;
+    }
+
+    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+      new: true,
+    }).select("-password");
+
+    res.status(200).json({ msg: "Profile updated", user });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
