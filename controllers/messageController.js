@@ -1,7 +1,12 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import { getIO } from "../socket.js";
 
-// Send a message
+// Send message + generate notification
+
+
 export const sendMessage = async (req, res) => {
   try {
     const { chatId, content } = req.body;
@@ -12,21 +17,36 @@ export const sendMessage = async (req, res) => {
       content,
     });
 
-    await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
+    const chat = await Chat.findById(chatId).populate("users", "_id");
+
+    if (!chat) return res.status(404).json({ msg: "Chat not found" });
+
+    // حدث آخر رسالة في الشات
+    chat.latestMessage = message._id;
+    await chat.save();
+
+    // إنشاء إشعار لكل مستخدم في الشات غير المرسل
+    chat.users.forEach(async (user) => {
+      if (user._id.toString() !== req.user.id) {
+        await Notification.create({
+          user: user._id,
+          message: `New message from ${req.user.id}`,
+        });
+      }
+    });
 
     res.status(201).json(message);
   } catch (err) {
+    console.error("❌ sendMessage error:", err);
     res.status(500).json({ msg: err.message });
   }
 };
 
+
 // Get messages in a chat
 export const getMessages = async (req, res) => {
   try {
-    const messages = await Message.find({ chat: req.params.chatId })
-      .populate("sender", "username")
-      .sort({ createdAt: 1 });
-
+    const messages = await Message.find({ chat: req.params.chatId }).populate("sender", "username profileImage").sort({ createdAt: 1 });
     res.status(200).json(messages);
   } catch (err) {
     res.status(500).json({ msg: err.message });

@@ -1,35 +1,17 @@
 import Post from "../models/Post.js";
-import cloudinary from "../utils/cloudinary.js";
-import multer from "multer";
-
-// Multer storage + Cloudinary
-import { CloudinaryStorage } from "multer-storage-cloudinary";
-
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "quantumleap/posts",
-    allowed_formats: ["jpg", "png", "jpeg"],
-  },
-});
-
-export const upload = multer({ storage });
 
 // Create post
 export const createPost = async (req, res) => {
   try {
-    let imageUrl = null;
-    if (req.file) imageUrl = req.file.path;
-
+    let imageUrl = req.file?.path || null;
     const post = await Post.create({
       title: req.body.title,
       summary: req.body.summary,
       content: req.body.content,
       author: req.user.id,
       status: "pending",
-      image: imageUrl,
+      image: imageUrl
     });
-
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -80,7 +62,6 @@ export const deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ msg: "Post not found" });
-
     await post.deleteOne();
     res.status(200).json({ msg: "Post deleted successfully" });
   } catch (err) {

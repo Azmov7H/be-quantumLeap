@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     profileImage: {
       type: String,
-      default: "https://res.cloudinary.com/ddho5u074/image/upload/v1737200000/default-avatar.png"
+      default: "https://res.cloudinary.com/ddho5u074/image/upload/v1737200000/default-avatar.png",
     },
   },
   { timestamps: true }

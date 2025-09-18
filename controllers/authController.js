@@ -4,12 +4,7 @@ import bcrypt from "bcryptjs";
 import cloudinary from "../utils/cloudinary.js";
 import streamifier from "streamifier";
 
-
-
-
-
-
-// Register new user
+// Register
 export const register = async (req, res) => {
   try {
     const { username, email, password, profileImage } = req.body;
@@ -20,26 +15,18 @@ export const register = async (req, res) => {
 
     let uploadedImage = null;
     if (profileImage) {
-      const result = await cloudinary.v2.uploader.upload(profileImage, {
-        folder: "users",
-      });
+      const result = await cloudinary.v2.uploader.upload(profileImage, { folder: "users" });
       uploadedImage = result.secure_url;
     }
 
-    const user = await User.create({
-      username,
-      email,
-      password: hash,
-      profileImage: uploadedImage || undefined,
-    });
-
+    const user = await User.create({ username, email, password: hash, profileImage: uploadedImage || undefined });
     res.status(201).json({ msg: "User registered successfully", user });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
 };
 
-// Login user
+// Login
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -49,10 +36,7 @@ export const login = async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ msg: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.status(200).json({ token, user });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -69,46 +53,28 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// Update profile (username, password, profileImage)
-
-
-
-
+// Update profile
 export const updateProfile = async (req, res) => {
   try {
     const { username, email, password } = req.body;
     let updateFields = {};
-
     if (username) updateFields.username = username;
     if (email) updateFields.email = email;
 
-    // ✅ لو فيه صورة نرفعها بـ buffer
     if (req.file) {
       const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "profiles" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
+        const stream = cloudinary.uploader.upload_stream({ folder: "profiles" }, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
         streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
-
       updateFields.profileImage = result.secure_url;
     }
 
-    if (password) {
-      const hash = await bcrypt.hash(password, 10);
-      updateFields.password = hash;
-    }
+    if (password) updateFields.password = await bcrypt.hash(password, 10);
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: updateFields },
-      { new: true, runValidators: true }
-    ).select("-password");
-
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updateFields }, { new: true, runValidators: true }).select("-password");
     res.json({ msg: "Profile updated", user });
   } catch (err) {
     console.error("❌ updateProfile error:", err);
