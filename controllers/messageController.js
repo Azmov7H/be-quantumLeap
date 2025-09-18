@@ -2,10 +2,11 @@ import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
-import { getIO } from "../socket.js";
 
 // Send message + generate notification
 
+
+import { getIO } from "../socket.js";
 
 export const sendMessage = async (req, res) => {
   try {
@@ -18,20 +19,21 @@ export const sendMessage = async (req, res) => {
     });
 
     const chat = await Chat.findById(chatId).populate("users", "_id");
-
     if (!chat) return res.status(404).json({ msg: "Chat not found" });
 
-    // حدث آخر رسالة في الشات
     chat.latestMessage = message._id;
     await chat.save();
 
-    // إنشاء إشعار لكل مستخدم في الشات غير المرسل
+    // إشعارات + WebSocket
     chat.users.forEach(async (user) => {
       if (user._id.toString() !== req.user.id) {
         await Notification.create({
           user: user._id,
           message: `New message from ${req.user.id}`,
         });
+
+        // إرسال الرسالة عبر الـ Socket
+        getIO().to(user._id.toString()).emit("newMessage", message);
       }
     });
 
@@ -41,7 +43,6 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
-
 
 // Get messages in a chat
 export const getMessages = async (req, res) => {
