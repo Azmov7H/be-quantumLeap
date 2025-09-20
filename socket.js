@@ -1,6 +1,7 @@
-// socket.js
 import { Server } from "socket.io";
 import Notification from "./models/Notification.js";
+import Message from "./models/Message.js";
+import Chat from "./models/Chat.js";
 
 let io;
 const onlineUsers = new Map();
@@ -19,9 +20,35 @@ export const initSocket = (server) => {
       console.log("Online Users:", onlineUsers);
     });
 
-    // استقبال إشعار جديد من السيرفر
+    // 📌 الانضمام لغرفة شات
+    socket.on("joinChat", (chatId) => {
+      socket.join(chatId);
+      console.log(`✅ User joined chat ${chatId}`);
+    });
+
+    // 📌 إرسال رسالة
+    socket.on("sendMessage", async ({ chatId, content, sender }) => {
+      try {
+        const message = await Message.create({
+          chat: chatId,
+          sender,
+          content,
+        });
+
+        // تحديث آخر رسالة في الشات
+        await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
+
+        // بث الرسالة لكل اللي في الغرفة
+        io.to(chatId).emit("newMessage", message);
+
+        console.log("📩 Message sent:", message);
+      } catch (err) {
+        console.error("❌ sendMessage error:", err);
+      }
+    });
+
+    // استقبال إشعار جديد
     socket.on("send_notification", async ({ userId, message, fromUser }) => {
-      // حفظ الإشعار في قاعدة البيانات
       const notif = await Notification.create({
         user: userId,
         message,
