@@ -8,46 +8,54 @@ const onlineUsers = new Map();
 
 export const initSocket = (server) => {
   io = new Server(server, {
-    cors: { origin: "*", credentials: true }, // عدّل حسب دومينك
+    cors: { origin: "*", credentials: true },
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+    console.log("✅ User connected:", socket.id);
 
-    // تسجيل المستخدم عند الاتصال
+    // 🟢 المستخدم يتسجل كـ Online
     socket.on("user_connected", (userId) => {
       onlineUsers.set(userId, socket.id);
-      console.log("Online Users:", onlineUsers);
+      socket.userId = userId; // نخزن اليوزر مع السوكيت
+      console.log("📌 Online Users:", onlineUsers);
     });
 
-    // 📌 الانضمام لغرفة شات
+    // 🟢 دخول غرفة شات
     socket.on("joinChat", (chatId) => {
       socket.join(chatId);
-      console.log(`✅ User joined chat ${chatId}`);
+      console.log(`👥 User joined chat ${chatId}`);
     });
 
-    // 📌 إرسال رسالة
-    socket.on("sendMessage", async ({ chatId, content, sender }) => {
+    // 🟢 إرسال رسالة
+    socket.on("sendMessage", async ({ chatId, content }) => {
       try {
+        if (!socket.userId) return;
+
+        // 1- إنشاء الرسالة
         const message = await Message.create({
           chat: chatId,
-          sender,
+          sender: socket.userId,
           content,
         });
 
-        // تحديث آخر رسالة في الشات
+        // 2- تحديث آخر رسالة بالشات
         await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
 
-        // بث الرسالة لكل اللي في الغرفة
-        io.to(chatId).emit("newMessage", message);
+        // 3- Populate البيانات عشان تبان كاملة للفرونت
+        const populatedMessage = await Message.findById(message._id)
+          .populate("sender", "username profileImage");
 
-        console.log("📩 Message sent:", message);
+        // 4- إرسال الرسالة لكل الناس في الشات
+        io.to(chatId).emit("newMessage", populatedMessage);
+
+        console.log("📩 Message sent:", populatedMessage);
       } catch (err) {
         console.error("❌ sendMessage error:", err);
       }
     });
 
-    // استقبال إشعار جديد
+    // 🟢 إرسال إشعار
     socket.on("send_notification", async ({ userId, message, fromUser }) => {
       const notif = await Notification.create({
         user: userId,
@@ -66,11 +74,10 @@ export const initSocket = (server) => {
       }
     });
 
+    // 🟢 قطع الاتصال
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
-      onlineUsers.forEach((value, key) => {
-        if (value === socket.id) onlineUsers.delete(key);
-      });
+      console.log("❌ User disconnected:", socket.id);
+      onlineUsers.delete(socket.userId);
     });
   });
 };
