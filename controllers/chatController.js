@@ -20,10 +20,11 @@ export const accessChat = async (req, res) => {
   }
 };
 
-// ✅ Get all chats of the logged-in user
+
+// ✅ Get all chats of the logged-in user securely
 export const getUserChats = async (req, res) => {
   try {
-    const chats = await Chat.find({ users: req.user.id })
+    let chats = await Chat.find({ users: req.user.id })
       .populate("users", "username profileImage")
       .populate({
         path: "latestMessage",
@@ -31,7 +32,21 @@ export const getUserChats = async (req, res) => {
       })
       .sort({ updatedAt: -1 });
 
-    res.status(200).json(chats);
+    // ✅ رجّع بس الشات مع الشخص التاني مش كل اليوزرز
+    const safeChats = chats.map(chat => {
+      const otherUser = chat.users.find(
+        u => u._id.toString() !== req.user.id.toString()
+      );
+
+      return {
+        _id: chat._id,
+        user: otherUser, // الشخص التاني اللي اتكلمت معاه
+        lastMessage: chat.latestMessage?.text || null,
+        updatedAt: chat.updatedAt,
+      };
+    });
+
+    res.status(200).json(safeChats);
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
