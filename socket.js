@@ -14,10 +14,10 @@ export const initSocket = (server) => {
   io.on("connection", (socket) => {
     console.log("✅ User connected:", socket.id);
 
-    // 🟢 المستخدم يتسجل كـ Online
+    // 🟢 تسجيل اليوزر كـ Online
     socket.on("user_connected", (userId) => {
       onlineUsers.set(userId, socket.id);
-      socket.userId = userId; // نخزن اليوزر مع السوكيت
+      socket.userId = userId;
       console.log("📌 Online Users:", onlineUsers);
     });
 
@@ -27,50 +27,51 @@ export const initSocket = (server) => {
       console.log(`👥 User joined chat ${chatId}`);
     });
 
-    // 🟢 إرسال رسالة
+    // 🟢 إرسال رسالة (DB + Real-time)
     socket.on("sendMessage", async ({ chatId, content }) => {
       try {
         if (!socket.userId) return;
 
-        // 1- إنشاء الرسالة
+        // 1- حفظ الرسالة
         const message = await Message.create({
           chat: chatId,
           sender: socket.userId,
           content,
         });
 
-        // 2- تحديث آخر رسالة بالشات
+        // 2- تحديث آخر رسالة
         await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
 
-        // 3- Populate البيانات عشان تبان كاملة للفرونت
+        // 3- Populate الرسالة
         const populatedMessage = await Message.findById(message._id)
           .populate("sender", "username profileImage");
 
-        // 4- إرسال الرسالة لكل الناس في الشات
+        // 4- إرسال الرسالة للأعضاء
         io.to(chatId).emit("newMessage", populatedMessage);
+
+        // 5- إشعارات للطرف التاني
+        const chat = await Chat.findById(chatId).populate("users", "_id");
+        chat.users.forEach(async (user) => {
+          if (user._id.toString() !== socket.userId) {
+            await Notification.create({
+              user: user._id,
+              message: `New message from ${socket.userId}`,
+            });
+
+            const socketId = onlineUsers.get(user._id.toString());
+            if (socketId) {
+              io.to(socketId).emit("receive_notification", {
+                message: `New message from ${socket.userId}`,
+                fromUser: socket.userId,
+                createdAt: new Date(),
+              });
+            }
+          }
+        });
 
         console.log("📩 Message sent:", populatedMessage);
       } catch (err) {
         console.error("❌ sendMessage error:", err);
-      }
-    });
-
-    // 🟢 إرسال إشعار
-    socket.on("send_notification", async ({ userId, message, fromUser }) => {
-      const notif = await Notification.create({
-        user: userId,
-        message,
-        fromUser: fromUser._id,
-      });
-
-      const socketId = onlineUsers.get(userId);
-      if (socketId) {
-        io.to(socketId).emit("receive_notification", {
-          _id: notif._id,
-          message: notif.message,
-          fromUser,
-          createdAt: notif.createdAt,
-        });
       }
     });
 

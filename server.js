@@ -8,7 +8,7 @@ import connectDB from "./config/db.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { apiLimiter } from "./middlewares/rateLimiter.js";
 
-// Import routes
+// Routes
 import authRoutes from "./routes/authRoutes.js";
 import postRoutes from "./routes/postRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
@@ -18,7 +18,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import moderationRoutes from "./routes/moderationRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 
-// Import and initialize socket
+// Socket
 import { initSocket } from "./socket.js";
 
 dotenv.config();
@@ -26,20 +26,17 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Connect to MongoDB
+// Connect DB
 connectDB();
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: '*',
-  credentials: true,
-}));
+app.use(cors({ origin: "*", credentials: true }));
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(apiLimiter);
 
-// Routes
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/comments", commentRoutes);
@@ -49,14 +46,14 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/moderation", moderationRoutes);
 app.use("/api/users", userRoutes);
 
-// Error handling middleware
+// Error Handler
 app.use(errorHandler);
 
-// Initialize socket.io
+// Init socket.io
 initSocket(server);
 
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
