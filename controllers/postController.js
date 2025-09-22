@@ -43,7 +43,7 @@ export const createPost = async (req, res) => {
 // Get all approved posts
 export const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find({ status: "approved" }).populate("author", "username");
+    const posts = await Post.find({ status: "approved" }).populate("author", "username","profileImage");
     res.status(200).json(posts);
   } catch (err) {
     res.status(500).json({ msg: err.message });
