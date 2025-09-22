@@ -1,5 +1,6 @@
 import Message from "../models/Message.js";
 import Chat from "../models/Chat.js";
+import Notification from "../models/Notification.js"; // 🟢 إضافة الموديل
 
 // ✅ Get all messages in a chat
 export const getMessages = async (req, res) => {
@@ -34,7 +35,27 @@ export const sendMessage = async (req, res) => {
     const populated = await Message.findById(message._id)
       .populate("sender", "username profileImage");
 
-    // 🟢 ابعت socket event لكل الموجودين في الغرفة
+    // 🟢 اشعار للطرف التاني
+    const chat = await Chat.findById(chatId).populate("users", "_id");
+    for (const user of chat.users) {
+      if (user._id.toString() !== req.user.id) {
+        // خزّن الإشعار في DB
+        const notif = await Notification.create({
+          user: user._id,          // المستقبل
+          fromUser: req.user.id,   // المرسل
+          type: "message",
+          message: "لديك رسالة جديدة",
+          chat: chatId,
+        });
+
+        // ابعت الاشعار لحظياً بالـ socket
+        const { getIO } = await import("../socket.js");
+        const io = getIO();
+        io.to(chatId).emit("receive_notification", await Notification.findById(notif._id).populate("fromUser", "username profileImage"));
+      }
+    }
+
+    // 🟢 ابعت الرسالة نفسها لكل الموجودين في الغرفة
     const { getIO } = await import("../socket.js");
     getIO().to(chatId).emit("newMessage", populated);
 

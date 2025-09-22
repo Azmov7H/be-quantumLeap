@@ -1,4 +1,7 @@
 import Post from "../models/Post.js";
+import Notification from "../models/Notification.js"; // 🟢 إضافة الموديل
+import User from "../models/User.js"; // 🟢 عشان نجيب باقي اليوزرز
+import { getIO } from "../socket.js"; // 🟢 عشان نرسل إشعارات لحظياً
 
 // Create post
 export const createPost = async (req, res) => {
@@ -12,6 +15,25 @@ export const createPost = async (req, res) => {
       status: "pending",
       image: imageUrl
     });
+
+    // 🟢 جلب بيانات صاحب البوست
+    const author = await User.findById(req.user.id).select("username");
+
+    // 🟢 إنشاء إشعار لكل المستخدمين (ممكن تخصها للـ followers بعدين)
+    const users = await User.find({ _id: { $ne: req.user.id } }).select("_id");
+    for (const user of users) {
+      const notif = await Notification.create({
+        user: user._id,
+        fromUser: req.user.id,
+        type: "post",
+        message: `${author.username} نشر منشور جديد`,
+        post: post._id,
+      });
+
+      // ابعت الإشعار لحظياً
+      getIO().emit("receive_notification", await Notification.findById(notif._id).populate("fromUser", "username profileImage"));
+    }
+
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -68,22 +90,46 @@ export const deletePost = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
+
 // إضافة لايك أو إزالة لايك
 export const toggleLikePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate("author", "username");
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
     const userId = req.user.id;
     const index = post.likes.indexOf(userId);
 
+    let action;
     if (index === -1) {
       post.likes.push(userId); // إضافة لايك
+      action = "like";
     } else {
       post.likes.splice(index, 1); // إزالة لايك
+      action = "unlike";
     }
 
     await post.save();
+
+    // 🟢 لو اللي عمل لايك مش نفس صاحب البوست → ابعت إشعار
+    if (action === "like" && String(post.author._id) !== userId) {
+      const fromUser = await User.findById(userId).select("username profileImage");
+
+      const notif = await Notification.create({
+        user: post.author._id,   // صاحب البوست
+        fromUser: userId,        // اللي عمل لايك
+        type: "like",
+        message: `${fromUser.username} عمل لايك على منشورك`,
+        post: post._id,
+      });
+
+      // إرسال لحظي عبر socket.io
+      getIO().emit(
+        "receive_notification",
+        await Notification.findById(notif._id).populate("fromUser", "username profileImage")
+      );
+    }
+
     res.status(200).json(post.likes);
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -94,18 +140,32 @@ export const toggleLikePost = async (req, res) => {
 export const addComment = async (req, res) => {
   try {
     const { content } = req.body;
-    const post = await Post.findById(req.params.id);
+    const post = await Post.findById(req.params.id).populate("author", "username");
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
-    const comment = {
-      user: req.user.id,
-      content
-    };
-
+    const comment = { user: req.user.id, content };
     post.comments.push(comment);
     await post.save();
 
-    // جلب التعليقات مع بيانات المستخدم
+    // 🟢 لو المعلق مش نفس صاحب البوست → ابعت إشعار
+    if (String(post.author._id) !== req.user.id) {
+      const fromUser = await User.findById(req.user.id).select("username profileImage");
+
+      const notif = await Notification.create({
+        user: post.author._id,   // صاحب البوست
+        fromUser: req.user.id,   // المعلق
+        type: "comment",
+        message: `${fromUser.username} علق على منشورك`,
+        post: post._id,
+      });
+
+      getIO().emit(
+        "receive_notification",
+        await Notification.findById(notif._id).populate("fromUser", "username profileImage")
+      );
+    }
+
+    // رجّع التعليقات مع بيانات المستخدمين
     const populatedPost = await Post.findById(req.params.id).populate("comments.user", "username profileImage");
     res.status(201).json(populatedPost.comments);
   } catch (err) {
