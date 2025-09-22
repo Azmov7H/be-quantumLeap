@@ -1,4 +1,5 @@
-import Notification from "../models/Notification.js";
+// controllers/notificationController.js
+import Notification from "../models/Notification.js"
 
 // ✅ Get all notifications for the logged-in user
 export const getNotifications = async (req, res) => {
@@ -7,14 +8,14 @@ export const getNotifications = async (req, res) => {
       .populate("fromUser", "username profileImage")
       .populate("chat", "users")
       .populate("post", "title")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
 
-    res.status(200).json(notifications);
+    res.status(200).json(notifications)
   } catch (err) {
-    console.error("❌ getNotifications error:", err);
-    res.status(500).json({ msg: err.message });
+    console.error("❌ getNotifications error:", err)
+    res.status(500).json({ msg: err.message })
   }
-};
+}
 
 // ✅ Mark all notifications as read
 export const markAllAsRead = async (req, res) => {
@@ -22,10 +23,10 @@ export const markAllAsRead = async (req, res) => {
     await Notification.updateMany(
       { user: req.user.id, read: false },
       { read: true }
-    );
-    res.status(200).json({ msg: "All notifications marked as read" });
+    )
+    res.status(200).json({ msg: "All notifications marked as read" })
   } catch (err) {
-    console.error("❌ markAllAsRead error:", err);
-    res.status(500).json({ msg: err.message });
+    console.error("❌ markAllAsRead error:", err)
+    res.status(500).json({ msg: err.message })
   }
-};
+}
