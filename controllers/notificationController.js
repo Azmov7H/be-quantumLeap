@@ -1,10 +1,14 @@
 import Notification from "../models/Notification.js";
 
-// Get all notifications for the logged-in user
+// ✅ Get all notifications for the logged-in user
 export const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ user: req.user.id })
-      .sort({ createdAt: -1 }); // أحدث الإشعارات أولاً
+      .populate("fromUser", "username profileImage")
+      .populate("chat", "users")
+      .populate("post", "title")
+      .sort({ createdAt: -1 });
+
     res.status(200).json(notifications);
   } catch (err) {
     console.error("❌ getNotifications error:", err);
@@ -12,7 +16,7 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-// Mark all notifications as read
+// ✅ Mark all notifications as read
 export const markAllAsRead = async (req, res) => {
   try {
     await Notification.updateMany(

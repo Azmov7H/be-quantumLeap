@@ -27,7 +27,7 @@ export const initSocket = (server) => {
       console.log(`👥 User joined chat ${chatId}`);
     });
 
-    // 🟢 إرسال رسالة (DB + Real-time)
+    // 🟢 إرسال رسالة (DB + Real-time + Notification)
     socket.on("sendMessage", async ({ chatId, content }) => {
       try {
         if (!socket.userId) return;
@@ -51,27 +51,58 @@ export const initSocket = (server) => {
 
         // 5- إشعارات للطرف التاني
         const chat = await Chat.findById(chatId).populate("users", "_id");
-        chat.users.forEach(async (user) => {
+        for (const user of chat.users) {
           if (user._id.toString() !== socket.userId) {
-            await Notification.create({
+            const notif = await Notification.create({
               user: user._id,
-              message: `New message from ${socket.userId}`,
+              fromUser: socket.userId,
+              type: "message",
+              message: "New message",
+              chat: chatId,
             });
 
             const socketId = onlineUsers.get(user._id.toString());
             if (socketId) {
               io.to(socketId).emit("receive_notification", {
-                message: `New message from ${socket.userId}`,
+                _id: notif._id,
+                type: "message",
                 fromUser: socket.userId,
-                createdAt: new Date(),
+                chatId: chatId,
+                message: "New message",
+                createdAt: notif.createdAt,
               });
             }
           }
-        });
+        }
 
         console.log("📩 Message sent:", populatedMessage);
       } catch (err) {
         console.error("❌ sendMessage error:", err);
+      }
+    });
+
+    // 🟢 إشعارات البوستات
+    socket.on("newPost", async ({ postId, userId, username }) => {
+      try {
+        // مثال: تبعت لكل الناس (ممكن تخصصها لفولوورز بس)
+        const notif = await Notification.create({
+          user: userId,
+          fromUser: userId,
+          type: "post",
+          message: `${username} نشر منشور جديد`,
+          post: postId,
+        });
+
+        io.emit("receive_notification", {
+          _id: notif._id,
+          type: "post",
+          fromUser: userId,
+          postId,
+          message: `${username} نشر منشور جديد`,
+          createdAt: notif.createdAt,
+        });
+      } catch (err) {
+        console.error("❌ newPost error:", err);
       }
     });
 
