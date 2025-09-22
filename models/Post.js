@@ -7,7 +7,7 @@ const postSchema = new mongoose.Schema(
     content: { type: String, required: true },
     image: { type: String },
     author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    status: { type: String, enum: ["pending", "approved", "rejected"], default: "approved" },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // اللايكات
     comments: [
       {
