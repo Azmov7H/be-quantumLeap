@@ -12,7 +12,7 @@ export const createPost = async (req, res) => {
       summary: req.body.summary,
       content: req.body.content,
       author: req.user.id,
-      status: "pending",
+      status: "approved",
       image: imageUrl
     });
 
