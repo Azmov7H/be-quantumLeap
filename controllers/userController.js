@@ -13,6 +13,16 @@ export const getUserProfile = async (req, res) => {
     return res.status(500).json({ msg: "Server error" });
   }
 };
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    return res.status(200).json(user);
+  } catch (err) {
+    console.error("getCurrentUser error:", err);
+    return res.status(500).json({ msg: "Server error" });
+  }
+};
 
 export const followUser = async (req, res) => {
   try {
