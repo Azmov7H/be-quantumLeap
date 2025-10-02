@@ -1,190 +1,188 @@
+// controllers/postController.js
 import Post from "../models/Post.js";
-import Notification from "../models/Notification.js"; // 🟢 إضافة الموديل
-import User from "../models/User.js"; // 🟢 عشان نجيب باقي اليوزرز
-import { getIO } from "../socket.js"; // 🟢 عشان نرسل إشعارات لحظياً
+import User from "../models/User.js";
+import Notification from "../models/Notification.js";
+import { sendNotificationToUser } from "../socket.js";
 
-// Create post
 export const createPost = async (req, res) => {
   try {
-    let imageUrl = req.file?.path || null;
+    const imageObj = req.file ? { url: req.file.path, public_id: req.file.filename || req.file.public_id } : null;
+
     const post = await Post.create({
       title: req.body.title,
       summary: req.body.summary,
       content: req.body.content,
-      author: req.user.id,
+      author: req.user._id,
       status: "approved",
-      image: imageUrl
+      image: imageObj
     });
 
-    // 🟢 جلب بيانات صاحب البوست
-    const author = await User.findById(req.user.id).select("username");
+    // notify followers only (efficient): get followers of author
+    const author = await User.findById(req.user._id).select("username followers");
+    const followers = author.followers || [];
 
-    // 🟢 إنشاء إشعار لكل المستخدمين (ممكن تخصها للـ followers بعدين)
-    const users = await User.find({ _id: { $ne: req.user.id } }).select("_id");
-    for (const user of users) {
+    for (const f of followers) {
       const notif = await Notification.create({
-        user: user._id,
-        fromUser: req.user.id,
+        user: f,
+        fromUser: req.user._id,
         type: "post",
         message: `${author.username} نشر منشور جديد`,
-        post: post._id,
+        post: post._id
       });
 
-      // ابعت الإشعار لحظياً
-      getIO().emit("receive_notification", await Notification.findById(notif._id).populate("fromUser", "username profileImage"));
+      const populatedNotif = await notif.populate("fromUser", "username avatar");
+      await sendNotificationToUser(f, populatedNotif);
     }
 
-    res.status(201).json(post);
+    return res.status(201).json(post);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("createPost error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// Get all approved posts
 export const getPosts = async (req, res) => {
   try {
     const posts = await Post.find({ status: "approved" })
-      .populate("author", "username profileImage"); // رجع اسم + صورة
-
-    res.status(200).json(posts);
+      .populate("author", "username avatar")
+      .sort({ createdAt: -1 });
+    return res.status(200).json(posts);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("getPosts error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-
-// Get single post
 export const getPost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id).populate("author", "username");
+    const post = await Post.findById(req.params.id).populate("author", "username avatar");
     if (!post) return res.status(404).json({ msg: "Post not found" });
-    res.status(200).json(post);
+    return res.status(200).json(post);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("getPost error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// Update post
 export const updatePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
+    if (String(post.author) !== String(req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ msg: "Not allowed" });
+    }
+
     if (req.body.title) post.title = req.body.title;
     if (req.body.summary) post.summary = req.body.summary;
     if (req.body.content) post.content = req.body.content;
-    if (req.file) post.image = req.file.path;
+    if (req.file) post.image = { url: req.file.path, public_id: req.file.filename || req.file.public_id };
 
     await post.save();
-    res.status(200).json(post);
+    return res.status(200).json(post);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("updatePost error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// Delete post
 export const deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ msg: "Post not found" });
+
+    if (String(post.author) !== String(req.user._id) && req.user.role !== "admin") {
+      return res.status(403).json({ msg: "Not allowed" });
+    }
+
+    // Optionally: remove image from Cloudinary using public_id (if exists)
+    if (post.image && post.image.public_id) {
+      try {
+        await import("../config/cloudinary.js").then(m => m.default.uploader.destroy(post.image.public_id));
+      } catch (e) { console.warn("Failed to remove cloudinary image", e); }
+    }
+
     await post.deleteOne();
-    res.status(200).json({ msg: "Post deleted successfully" });
+    return res.status(200).json({ msg: "Post deleted" });
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("deletePost error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// إضافة لايك أو إزالة لايك
 export const toggleLikePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id).populate("author", "username");
+    const post = await Post.findById(req.params.id).populate("author", "username avatar");
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
-    const userId = req.user.id;
-    const index = post.likes.indexOf(userId);
-
+    const userId = req.user._id.toString();
+    const index = post.likes.findIndex(id => id.toString() === userId);
     let action;
     if (index === -1) {
-      post.likes.push(userId); // إضافة لايك
+      post.likes.push(req.user._id);
       action = "like";
     } else {
-      post.likes.splice(index, 1); // إزالة لايك
+      post.likes.splice(index, 1);
       action = "unlike";
     }
-
     await post.save();
 
-    // 🟢 لو اللي عمل لايك مش نفس صاحب البوست → ابعت إشعار
     if (action === "like" && String(post.author._id) !== userId) {
-      const fromUser = await User.findById(userId).select("username profileImage");
-
       const notif = await Notification.create({
-        user: post.author._id,   // صاحب البوست
-        fromUser: userId,        // اللي عمل لايك
+        user: post.author._id,
+        fromUser: req.user._id,
         type: "like",
-        message: `${fromUser.username} عمل لايك على منشورك`,
-        post: post._id,
+        message: `${req.user.username || "Someone"} عمل لايك على منشورك`,
+        post: post._id
       });
-
-      // إرسال لحظي عبر socket.io
-      getIO().emit(
-        "receive_notification",
-        await Notification.findById(notif._id).populate("fromUser", "username profileImage")
-      );
+      const populatedNotif = await notif.populate("fromUser", "username avatar");
+      await sendNotificationToUser(String(post.author._id), populatedNotif);
     }
 
-    res.status(200).json(post.likes);
+    return res.status(200).json(post.likes);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("toggleLikePost error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// إضافة كومنت
 export const addComment = async (req, res) => {
   try {
     const { content } = req.body;
-    const post = await Post.findById(req.params.id).populate("author", "username");
+    const post = await Post.findById(req.params.id).populate("author", "username avatar");
     if (!post) return res.status(404).json({ msg: "Post not found" });
 
-    const comment = { user: req.user.id, content };
+    const comment = { user: req.user._id, content };
     post.comments.push(comment);
     await post.save();
 
-    // 🟢 لو المعلق مش نفس صاحب البوست → ابعت إشعار
-    if (String(post.author._id) !== req.user.id) {
-      const fromUser = await User.findById(req.user.id).select("username profileImage");
-
+    if (String(post.author._id) !== String(req.user._id)) {
       const notif = await Notification.create({
-        user: post.author._id,   // صاحب البوست
-        fromUser: req.user.id,   // المعلق
+        user: post.author._id,
+        fromUser: req.user._id,
         type: "comment",
-        message: `${fromUser.username} علق على منشورك`,
-        post: post._id,
+        message: `${req.user.username || "Someone"} علق على منشورك`,
+        post: post._id
       });
-
-      getIO().emit(
-        "receive_notification",
-        await Notification.findById(notif._id).populate("fromUser", "username profileImage")
-      );
+      const populatedNotif = await notif.populate("fromUser", "username avatar");
+      await sendNotificationToUser(String(post.author._id), populatedNotif);
     }
 
-    // رجّع التعليقات مع بيانات المستخدمين
-    const populatedPost = await Post.findById(req.params.id).populate("comments.user", "username profileImage");
-    res.status(201).json(populatedPost.comments);
+    const populatedPost = await Post.findById(req.params.id).populate("comments.user", "username avatar");
+    return res.status(201).json(populatedPost.comments);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("addComment error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-// Get comments for a specific post
 export const getComments = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id)
-      .populate("comments.user", "username profileImage"); // جلب بيانات كل مستخدم
+    const post = await Post.findById(req.params.id).populate("comments.user", "username avatar");
     if (!post) return res.status(404).json({ msg: "Post not found" });
-
-    res.status(200).json(post.comments);
+    return res.status(200).json(post.comments);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("getComments error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };

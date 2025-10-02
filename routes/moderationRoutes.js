@@ -1,5 +1,5 @@
 import express from "express";
-import { protect, isAdmin } from "../middlewares/authMiddleware.js";
+import { protect, isAdmin } from "../middlewares/auth.js";
 import { approvePost, rejectPost, getPendingPosts } from "../controllers/moderationController.js";
 
 const router = express.Router();

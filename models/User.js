@@ -10,6 +10,13 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "https://res.cloudinary.com/ddho5u074/image/upload/v1737200000/default-avatar.png",
     },
+    socialLinks: {
+      facebook: { type: String, default: "" },
+      linkedin: { type: String, default: "" },
+      whatsapp: { type: String, default: "" },
+    },
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );

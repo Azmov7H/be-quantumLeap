@@ -1,53 +1,55 @@
+// controllers/chatController.js
 import Chat from "../models/Chat.js";
+import Message from "../models/Message.js";
 
-// ✅ Start or get existing chat
 export const accessChat = async (req, res) => {
-  const { userId } = req.body;
   try {
-    let chat = await Chat.findOne({
-      users: { $all: [req.user.id, userId] },
-    })
-      .populate("users", "username profileImage")
-      .populate("latestMessage");
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ msg: "userId required" });
+
+    let chat = await Chat.findOne({ users: { $all: [req.user._id, userId] } })
+      .populate("users", "username avatar")
+      .populate({
+        path: "latestMessage",
+        populate: { path: "sender", select: "username avatar" }
+      });
 
     if (!chat) {
-      chat = await Chat.create({ users: [req.user.id, userId] });
+      chat = await Chat.create({ users: [req.user._id, userId] });
+      chat = await Chat.findById(chat._id).populate("users", "username avatar");
     }
 
-    res.status(200).json(chat);
+    return res.status(200).json(chat);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("accessChat error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
 
-
-// ✅ Get all chats of the logged-in user securely
 export const getUserChats = async (req, res) => {
   try {
-    let chats = await Chat.find({ users: req.user.id })
-      .populate("users", "username profileImage")
+    const chats = await Chat.find({ users: req.user._id })
+      .populate("users", "username avatar")
       .populate({
         path: "latestMessage",
-        populate: { path: "sender", select: "username profileImage" },
+        populate: { path: "sender", select: "username avatar" }
       })
       .sort({ updatedAt: -1 });
 
-    // ✅ رجّع بس الشات مع الشخص التاني مش كل اليوزرز
+    // map to simple view: otherUser + lastMessage
     const safeChats = chats.map(chat => {
-      const otherUser = chat.users.find(
-        u => u._id.toString() !== req.user.id.toString()
-      );
-
+      const otherUser = chat.users.find(u => String(u._id) !== String(req.user._id));
       return {
         _id: chat._id,
-        user: otherUser, // الشخص التاني اللي اتكلمت معاه
-        lastMessage: chat.latestMessage?.text || null,
-        updatedAt: chat.updatedAt,
+        user: otherUser || null,
+        lastMessage: chat.latestMessage ? (chat.latestMessage.content || null) : null,
+        updatedAt: chat.updatedAt
       };
     });
 
-    res.status(200).json(safeChats);
+    return res.status(200).json(safeChats);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("getUserChats error:", err);
+    return res.status(500).json({ msg: "Server error" });
   }
 };
