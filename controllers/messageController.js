@@ -17,7 +17,9 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { chatId, content } = req.body;
+    const { content } = req.body;
+    const { chatId } = req.params;
+
     if (!chatId || (!content && !req.file)) return res.status(400).json({ msg: "chatId and content or file required" });
 
     const media = req.file ? { url: req.file.path, public_id: req.file.filename || req.file.public_id, type: "image" } : undefined;

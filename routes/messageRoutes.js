@@ -7,6 +7,6 @@ import { getMessages, sendMessage } from "../controllers/messageController.js";
 const router = express.Router();
 
 router.get("/:chatId", protect, getMessages);
-router.post("/", protect, uploadCloud.single("media"), sendMessage);
+router.post("/:chatId", protect, uploadCloud.single("media"), sendMessage);
 
 export default router;
