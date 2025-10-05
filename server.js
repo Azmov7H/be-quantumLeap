@@ -27,9 +27,15 @@ connectDB();
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || "*", credentials: true }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL, // أو دومين الفرونت
+  credentials: true
+}));
+
 app.use(morgan("dev"));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use(apiLimiter);
 
 // Routes

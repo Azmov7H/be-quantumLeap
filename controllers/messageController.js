@@ -7,7 +7,7 @@ import { sendNotificationToUser } from "../socket.js";
 export const getMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const messages = await Message.find({ chat: chatId }).populate("sender", "username avatar").sort({ createdAt: 1 });
+    const messages = await Message.find({ chat: chatId }).populate("sender", "username profileImage").sort({ createdAt: 1 });
     return res.status(200).json(messages);
   } catch (err) {
     console.error("getMessages error:", err);
@@ -31,7 +31,7 @@ export const sendMessage = async (req, res) => {
 
     await Chat.findByIdAndUpdate(chatId, { latestMessage: message._id });
 
-    const populated = await Message.findById(message._id).populate("sender", "username avatar");
+    const populated = await Message.findById(message._id).populate("sender", "username profileImage");
 
     // Notifications for the other chat users
     const chat = await Chat.findById(chatId).populate("users", "_id");
@@ -47,7 +47,7 @@ export const sendMessage = async (req, res) => {
         chat: chatId
       });
 
-      const populatedNotif = await notif.populate("fromUser", "username avatar");
+      const populatedNotif = await notif.populate("fromUser", "username profileImage");
       await sendNotificationToUser(targetId, populatedNotif);
     }
 

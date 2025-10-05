@@ -4,10 +4,10 @@ import Notification from "../models/Notification.js";
 export const getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ user: req.user._id })
-      .populate("fromUser", "username avatar")
+      .populate("fromUser", "username profileImage")
       .populate({
         path: "chat",
-        populate: { path: "users", select: "username avatar" }
+        populate: { path: "users", select: "username profileImage" }
       })
       .populate("post", "title")
       .sort({ createdAt: -1 });

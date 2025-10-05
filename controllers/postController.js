@@ -3,6 +3,12 @@ import Post from "../models/Post.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendNotificationToUser } from "../socket.js";
+import { getIO } from "../socket.js";
+
+
+
+
+/// cerate a new post
 
 export const createPost = async (req, res) => {
   try {
@@ -41,10 +47,12 @@ export const createPost = async (req, res) => {
   }
 };
 
+
+///get all posts (only approved)
 export const getPosts = async (req, res) => {
   try {
     const posts = await Post.find({ status: "approved" })
-      .populate("author", "username avatar")
+      .populate("author", "username profileImage")
       .sort({ createdAt: -1 });
     return res.status(200).json(posts);
   } catch (err) {
@@ -53,6 +61,9 @@ export const getPosts = async (req, res) => {
   }
 };
 
+
+
+/// get  a single post by id
 export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id).populate("author", "username avatar");
@@ -63,6 +74,9 @@ export const getPost = async (req, res) => {
     return res.status(500).json({ msg: "Server error" });
   }
 };
+
+
+///update a post
 
 export const updatePost = async (req, res) => {
   try {
@@ -85,6 +99,9 @@ export const updatePost = async (req, res) => {
     return res.status(500).json({ msg: "Server error" });
   }
 };
+
+
+/// delete a post
 
 export const deletePost = async (req, res) => {
   try {
@@ -110,6 +127,8 @@ export const deletePost = async (req, res) => {
   }
 };
 
+
+/// Like or unLike a post
 export const toggleLikePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id).populate("author", "username avatar");
@@ -146,39 +165,46 @@ export const toggleLikePost = async (req, res) => {
   }
 };
 
+
+/// add comment to a post
 export const addComment = async (req, res) => {
   try {
-    const { content } = req.body;
-    const post = await Post.findById(req.params.id).populate("author", "username avatar");
-    if (!post) return res.status(404).json({ msg: "Post not found" });
+    const { text } = req.body;
+    const postId = req.params.id;
 
-    const comment = { user: req.user._id, content };
-    post.comments.push(comment);
-    await post.save();
-
-    if (String(post.author._id) !== String(req.user._id)) {
-      const notif = await Notification.create({
-        user: post.author._id,
-        fromUser: req.user._id,
-        type: "comment",
-        message: `${req.user.username || "Someone"} علق على منشورك`,
-        post: post._id
-      });
-      const populatedNotif = await notif.populate("fromUser", "username avatar");
-      await sendNotificationToUser(String(post.author._id), populatedNotif);
+    if (!text) {
+      return res.status(400).json({ message: "Comment text is required" });
     }
 
-    const populatedPost = await Post.findById(req.params.id).populate("comments.user", "username avatar");
-    return res.status(201).json(populatedPost.comments);
-  } catch (err) {
-    console.error("addComment error:", err);
-    return res.status(500).json({ msg: "Server error" });
+    // إضافة التعليق مباشرة داخل البوست
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const newComment = {
+      user: req.user._id,
+      content: text,
+    };
+
+    post.comments.unshift(newComment); // نضيف التعليق في البداية
+    await post.save();
+
+    // تعبئة بيانات المستخدم
+    const populatedComment = await Post.populate(newComment, {
+      path: "user",
+      select: "username profileImage",
+    });
+
+    res.status(201).json(populatedComment);
+  } catch (error) {
+    console.error("❌ Error in addComment:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+///get all comments for a post
 export const getComments = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id).populate("comments.user", "username avatar");
+    const post = await Post.findById(req.params.id).populate("comments.user", "username profileImage");
     if (!post) return res.status(404).json({ msg: "Post not found" });
     return res.status(200).json(post.comments);
   } catch (err) {

@@ -29,10 +29,10 @@ export const accessChat = async (req, res) => {
 export const getUserChats = async (req, res) => {
   try {
     const chats = await Chat.find({ users: req.user._id })
-      .populate("users", "username avatar")
+      .populate("users", "username profileImage")
       .populate({
         path: "latestMessage",
-        populate: { path: "sender", select: "username avatar" }
+        populate: { path: "sender", select: "username profileImage" }
       })
       .sort({ updatedAt: -1 });
 
