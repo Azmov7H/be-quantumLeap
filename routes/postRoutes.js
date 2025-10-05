@@ -16,6 +16,6 @@ router.put("/:id", protect, uploadCloud.single("image"), updatePost);
 router.delete("/:id", protect, deletePost);
 router.put("/:id/like", protect, toggleLikePost);
 router.post("/:id/comment", protect, addComment);
-router.get("/:id/comments", protect, getComments);
+router.get("/:id/comments", getComments);
 
 export default router;
