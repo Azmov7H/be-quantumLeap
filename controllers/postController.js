@@ -4,46 +4,41 @@ import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { sendNotificationToUser } from "../socket.js";
 import { getIO } from "../socket.js";
+import cloudinary from "../config/cloudinary.js";
+
 
 
 
 
 /// cerate a new post
 
+
 export const createPost = async (req, res) => {
   try {
-    const imageObj = req.file ? { url: req.file.path, public_id: req.file.filename || req.file.public_id } : null;
+    const { title, summary, content } = req.body;
 
-    const post = await Post.create({
-      title: req.body.title,
-      summary: req.body.summary,
-      content: req.body.content,
-      author: req.user._id,
-      status: "approved",
-      image: imageObj
-    });
-
-    // notify followers only (efficient): get followers of author
-    const author = await User.findById(req.user._id).select("username followers");
-    const followers = author.followers || [];
-
-    for (const f of followers) {
-      const notif = await Notification.create({
-        user: f,
-        fromUser: req.user._id,
-        type: "post",
-        message: `${author.username} نشر منشور جديد`,
-        post: post._id
+    let imageUrl = "";
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "posts",
       });
-
-      const populatedNotif = await notif.populate("fromUser", "username avatar");
-      await sendNotificationToUser(f, populatedNotif);
+      imageUrl = result.secure_url;
     }
 
-    return res.status(201).json(post);
+    const post = new Post({
+      title,
+      summary,
+      content,
+      image: imageUrl,
+      author: req.user.id,
+    });
+
+    await post.save();
+
+    res.status(201).json({ msg: "Post created", post });
   } catch (err) {
-    console.error("createPost error:", err);
-    return res.status(500).json({ msg: "Server error" });
+    console.error("Error creating post:", err);
+    res.status(500).json({ msg: "Server error" });
   }
 };
 

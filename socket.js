@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import Notification from "./models/Notification.js";
 import Message from "./models/Message.js";
 import Chat from "./models/Chat.js";
+import Post from "./models/Post.js";
 
 let io;
 export const onlineUsers = new Map(); // userId -> socketId
