@@ -4,7 +4,7 @@ import { protect } from "../middlewares/auth.js";
 import { uploadCloud } from "../utils/multerCloudinary.js";
 import {
   createPost, getPosts, getPost, updatePost, deletePost,
-  toggleLikePost, addComment, getComments
+  toggleLikePost, addComment, getComments,getPostLikes
 } from "../controllers/postController.js";
 
 const router = express.Router();
@@ -15,6 +15,7 @@ router.post("/", protect, uploadCloud.single("image"), createPost);
 router.put("/:id", protect, uploadCloud.single("image"), updatePost);
 router.delete("/:id", protect, deletePost);
 router.put("/:id/like", protect, toggleLikePost);
+router.get("/:id/likes", getPostLikes);
 router.post("/:id/comment", protect, addComment);
 router.get("/:id/comments", getComments);
 

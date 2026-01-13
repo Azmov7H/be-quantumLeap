@@ -11,4 +11,8 @@ const NotificationSchema = new mongoose.Schema({
   read: { type: Boolean, default: false }
 }, { timestamps: true });
 
+// Index for recipient lookups and state filtering
+NotificationSchema.index({ user: 1, createdAt: -1 });
+NotificationSchema.index({ user: 1, read: 1 });
+
 export default mongoose.models.Notification || mongoose.model("Notification", NotificationSchema);

@@ -1,30 +1,20 @@
-// controllers/notificationController.js
-import Notification from "../models/Notification.js";
+import notificationService from "../services/notificationService.js";
+import { successResponse, errorResponse } from "../utils/responseHelper.js";
 
 export const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ user: req.user._id })
-      .populate("fromUser", "username profileImage")
-      .populate({
-        path: "chat",
-        populate: { path: "users", select: "username profileImage" }
-      })
-      .populate("post", "title")
-      .sort({ createdAt: -1 });
-
-    return res.status(200).json(notifications);
+    const notifications = await notificationService.getUserNotifications(req.user._id);
+    return successResponse(res, notifications);
   } catch (err) {
-    console.error("getNotifications error:", err);
-    return res.status(500).json({ msg: "Server error" });
+    return errorResponse(res, err.message, 500, err);
   }
 };
 
 export const markAllAsRead = async (req, res) => {
   try {
-    await Notification.updateMany({ user: req.user._id, read: false }, { read: true });
-    return res.status(200).json({ msg: "All notifications marked as read" });
+    const result = await notificationService.markAllAsRead(req.user._id);
+    return successResponse(res, result);
   } catch (err) {
-    console.error("markAllAsRead error:", err);
-    return res.status(500).json({ msg: "Server error" });
+    return errorResponse(res, err.message, 500, err);
   }
 };
