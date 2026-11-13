@@ -8,7 +8,7 @@ The frontend lives in the sibling repository **`QuantumDesk`** (separate repo, s
 
 ## Stack
 
-Express 4 · Mongoose 8 · JWT (`jsonwebtoken`) · bcryptjs · Multer + Cloudinary (`multer-storage-cloudinary`, `streamifier`) · Socket.IO 4 · Helmet · CORS · Morgan · `express-rate-limit` · `cookie-parser` (currently unused; required by the cookie-auth migration in `TASK-05-01`)
+Express 4 · Mongoose 8 · JWT (`jsonwebtoken`) · bcryptjs · Multer + Cloudinary (`multer-storage-cloudinary`) · Socket.IO 4 · Helmet · CORS · Morgan · `express-rate-limit` · `cookie-parser` (currently unused; required by the cookie-auth migration in `TASK-05-01`)
 
 ## Requirements
 
